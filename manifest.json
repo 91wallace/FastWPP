@@ -13,5 +13,11 @@
   "background_color": "#f0f2f5",
   "theme_color": "#128C7E",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "protocol_handlers": [
+    {
+      "protocol": "web+tel",
+      "url": "./index.html?num=%s"
+    }
+  ]
 }

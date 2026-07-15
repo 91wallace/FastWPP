@@ -195,51 +195,194 @@
             carregarMensagemSelecionada();
         }
 
-        function excluirMensagem() {
-            let index = document.getElementById('seletor-mensagens').value;
+<script>
+    // --- Registro do Service Worker ---
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+            .then(() => console.log('Service Worker registrado.'))
+            .catch(err => console.log('Erro no Service Worker:', err));
+    }
 
-            if (index === "") {
-                alert('Selecione um modelo para excluir.');
-                return;
-            }
-
-            if (confirm('Deseja excluir este modelo?')) {
-                listaMensagens.splice(index, 1);
-                salvarNoArmazenamento();
-                atualizarSeletor();
+    // --- Registro de Manipulador de Protocolo via JS ---
+    // Isso força o navegador a pedir autorização ao usuário para tratar links de telefone
+    window.addEventListener('load', () => {
+        if ('registerProtocolHandler' in navigator) {
+            try {
+                // Registra o protocolo customizado que o manifest usa
+                navigator.registerProtocolHandler(
+                    'web+tel',
+                    window.location.origin + '/index.html?num=%s',
+                    'Zap Rápido Discador'
+                );
+            } catch (e) {
+                console.log('Não foi possível registrar o manipulador de protocolo:', e);
             }
         }
+    });
 
-        function abrirWhatsapp() {
-            let num = document.getElementById('numero').value.replace(/\D/g, ''); 
-            let msg = document.getElementById('mensagem').value;
+    let instaladorInstancia;
+    const botaoInstalar = document.getElementById('btn-instalar');
 
-            if (num === '') {
-                alert('Digite ou cole o número do cliente.');
-                return;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        instaladorInstancia = e;
+        botaoInstalar.style.display = 'block';
+    });
+
+    botaoInstalar.addEventListener('click', () => {
+        if (instaladorInstancia) {
+            instaladorInstancia.prompt();
+            instaladorInstancia.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    botaoInstalar.style.display = 'none';
+                }
+                instaladorInstancia = null;
+            });
+        }
+    });
+
+    let listaMensagens = [];
+
+    window.onload = function() {
+        carregarDoArmazenamento();
+        atualizarSeletor();
+        capturarNumeroDaUrl();
+    };
+
+    // Captura o número enviado via Protocol Handler e limpa a URL
+    function capturarNumeroDaUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let numParam = urlParams.get('num');
+        
+        if (numParam) {
+            // Remove o prefixo do protocolo se ele vier junto (ex: "web+tel:")
+            numParam = numParam.replace('web+tel:', '').replace('tel:', '');
+            // Decodifica e filtra para manter apenas dígitos numéricos
+            let numeroLimpo = decodeURIComponent(numParam).replace(/\D/g, '');
+            
+            // Remove o DDI do país temporariamente caso venha duplicado
+            if (numeroLimpo.startsWith('55') && (numeroLimpo.length === 12 || numeroLimpo.length === 13)) {
+                numeroLimpo = numeroLimpo.substring(2);
             }
+            
+            document.getElementById('numero').value = numeroLimpo;
+        }
+    }
 
-            if (num.length === 11 || num.length === 10) {
-                num = '55' + num;
-            }
+    function carregarDoArmazenamento() {
+        let salvas = localStorage.getItem('mensagensPredefinidas');
+        if (salvas) {
+            listaMensagens = JSON.parse(salvas);
+        } else {
+            listaMensagens = [
+                { titulo: "Saudação Inicial", texto: "Olá! Como posso te ajudar hoje?" },
+                { titulo: "Link de Compra", texto: "Olá! Segue o link para finalizar sua compra: " }
+            ];
+            salvarNoArmazenamento();
+        }
+    }
 
-            let textoCodificado = encodeURIComponent(msg);
-            let url = `whatsapp://send?phone=${num}&text=${textoCodificado}`;
+    function salvarNoArmazenamento() {
+        localStorage.setItem('mensagensPredefinidas', JSON.stringify(listaMensagens));
+    }
 
-            window.location.href = url;
+    function atualizarSeletor() {
+        let seletor = document.getElementById('seletor-mensagens');
+        seletor.innerHTML = '<option value="">-- Criar Novo Modelo --</option>';
+        
+        listaMensagens.forEach((msg, index) => {
+            let opt = document.createElement('option');
+            opt.value = index;
+            opt.innerHTML = msg.titulo;
+            seletor.appendChild(opt);
+        });
+
+        carregarMensagemSelecionada();
+    }
+
+    function carregarMensagemSelecionada() {
+        let index = document.getElementById('seletor-mensagens').value;
+        let campoTitulo = document.getElementById('titulo-mensagem');
+        let campoTexto = document.getElementById('mensagem');
+
+        if (index !== "") {
+            campoTitulo.value = listaMensagens[index].titulo;
+            campoTexto.value = listaMensagens[index].texto;
+        } else {
+            campoTitulo.value = "";
+            campoTexto.value = "";
+        }
+    }
+
+    function salvarMensagem() {
+        let titulo = document.getElementById('titulo-mensagem').value.trim();
+        let texto = document.getElementById('mensagem').value.trim();
+        let index = document.getElementById('seletor-mensagens').value;
+
+        if (!titulo || !texto) {
+            alert('Preencha o título e o texto da mensagem.');
+            return;
         }
 
-        function ligarCliente() {
-            let num = document.getElementById('numero').value.replace(/\D/g, '');
-
-            if (num === '') {
-                alert('Digite ou cole o número do cliente.');
-                return;
-            }
-
-            window.location.href = `tel:${num}`;
+        if (index !== "") {
+            listaMensagens[index] = { titulo, texto };
+        } else {
+            listaMensagens.push({ titulo, texto });
+            index = listaMensagens.length - 1;
         }
-    </script>
+
+        salvarNoArmazenamento();
+        atualizarSeletor();
+        document.getElementById('seletor-mensagens').value = index;
+        carregarMensagemSelecionada();
+    }
+
+    function excluirMensagem() {
+        let index = document.getElementById('seletor-mensagens').value;
+
+        if (index === "") {
+            alert('Selecione um modelo para excluir.');
+            return;
+        }
+
+        if (confirm('Deseja excluir este modelo?')) {
+            listaMensagens.splice(index, 1);
+            salvarNoArmazenamento();
+            atualizarSeletor();
+        }
+    }
+
+    function abrirWhatsapp() {
+        let num = document.getElementById('numero').value.replace(/\D/g, ''); 
+        let msg = document.getElementById('mensagem').value;
+
+        if (num === '') {
+            alert('Digite ou cole o número do cliente.');
+            return;
+        }
+
+        if (num.length === 11 || num.length === 10) {
+            num = '55' + num;
+        }
+
+        let textoCodificado = encodeURIComponent(msg);
+        let url = `whatsapp://send?phone=${num}&text=${textoCodificado}`;
+
+        window.location.href = url;
+    }
+
+    function ligarCliente() {
+        let num = document.getElementById('numero').value.replace(/\D/g, '');
+
+        if (num === '') {
+            alert('Digite ou cole o número do cliente.');
+            return;
+        }
+
+        window.location.href = `tel:${num}`;
+    }
+</script>
+    
 
 </body>
 </html>

@@ -18,19 +18,22 @@
         input, textarea, select { width: 100%; margin-bottom: 16px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; font-size: 16px; background-color: #fafafa; transition: border-color 0.2s; -webkit-appearance: none; }
         input:focus, textarea:focus, select:focus { outline: none; border-color: #25D366; background-color: #fff; }
         
+        .area-botoes-principais { display: flex; flex-direction: column; gap: 10px; }
         .btn-enviar { background-color: #25D366; color: white; border: none; font-weight: bold; font-size: 18px; padding: 15px; border-radius: 10px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(37, 211, 102, 0.2); }
         .btn-enviar:active { background-color: #128C7E; transform: scale(0.98); }
         
+        .btn-ligar { background-color: #007BFF; color: white; border: none; font-weight: bold; font-size: 18px; padding: 15px; border-radius: 10px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2); }
+        .btn-ligar:active { background-color: #0056b3; transform: scale(0.98); }
+
         .grid-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .btn-acao { padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 4px; }
-        .btn-salvar { background-color: #007BFF; color: white; }
-        .btn-salvar:active { background-color: #0056b3; }
+        .btn-salvar { background-color: #6c757d; color: white; }
+        .btn-salvar:active { background-color: #5a6268; }
         .btn-excluir { background-color: #DC3545; color: white; }
         .btn-excluir:active { background-color: #bd2130; }
         
         hr { border: 0; border-top: 1px solid #e9edef; margin: 15px 0; }
         
-        /* Botão flutuante para instalar o app */
         #btn-instalar { display: none; background-color: #128C7E; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-weight: bold; font-size: 14px; position: fixed; bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 999; cursor: pointer; }
     </style>
 </head>
@@ -62,25 +65,26 @@
 
         <hr>
 
-        <button type="button" class="btn-enviar" onclick="abrirWhatsapp()">🚀 Abrir no WhatsApp</button>
+        <div class="area-botoes-principais">
+            <button type="button" class="btn-enviar" onclick="abrirWhatsapp()">🚀 Abrir no WhatsApp</button>
+            <button type="button" class="btn-ligar" onclick="ligarCliente()">📞 Ligar para Cliente</button>
+        </div>
     </div>
 
     <script>
-        // --- Registro do Service Worker (Essencial para PWA) ---
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(() => console.log('Service Worker registrado com sucesso.'))
                 .catch(err => console.log('Erro ao registrar Service Worker:', err));
         }
 
-        // --- Captura do evento de Instalação ---
         let instaladorInstancia;
         const botaoInstalar = document.getElementById('btn-instalar');
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             instaladorInstancia = e;
-            botaoInstalar.style.display = 'block'; // Mostra o botão flutuante se puder instalar
+            botaoInstalar.style.display = 'block';
         });
 
         botaoInstalar.addEventListener('click', () => {
@@ -95,13 +99,33 @@
             }
         });
 
-        // --- Lógica de Mensagens e WhatsApp ---
         let listaMensagens = [];
 
         window.onload = function() {
             carregarDoArmazenamento();
             atualizarSeletor();
+            capturarNumeroDaUrl(); // Captura o número caso o app tenha sido aberto por um clique externo
         };
+
+        // Captura o número enviado via Protocol Handler e limpa a URL
+        function capturarNumeroDaUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let numParam = urlParams.get('num');
+            
+            if (numParam) {
+                // Remove o prefixo do protocolo se ele vier junto (ex: "web+tel:")
+                numParam = numParam.replace('web+tel:', '');
+                // Decodifica e filtra para manter apenas dígitos numéricos
+                let numeroLimpo = decodeURIComponent(numParam).replace(/\D/g, '');
+                
+                // Remove o DDI do país temporariamente caso venha duplicado para não bagunçar o campo
+                if (numeroLimpo.startsWith('55') && (numeroLimpo.length === 12 || numeroLimpo.length === 13)) {
+                    numeroLimpo = numeroLimpo.substring(2);
+                }
+                
+                document.getElementById('numero').value = numeroLimpo;
+            }
+        }
 
         function carregarDoArmazenamento() {
             let salvas = localStorage.getItem('mensagensPredefinidas');
@@ -203,6 +227,17 @@
             let url = `whatsapp://send?phone=${num}&text=${textoCodificado}`;
 
             window.location.href = url;
+        }
+
+        function ligarCliente() {
+            let num = document.getElementById('numero').value.replace(/\D/g, '');
+
+            if (num === '') {
+                alert('Digite ou cole o número do cliente.');
+                return;
+            }
+
+            window.location.href = `tel:${num}`;
         }
     </script>
 

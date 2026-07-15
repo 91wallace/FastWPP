@@ -1,6 +1,6 @@
 {
   "short_name": "Zap Rápido",
-  "name": "Zap Rápido - Mensagens Diretas",
+  "name": "Zap Rápido - Mensagens e Chamadas",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/124/124034.png",
@@ -14,6 +14,7 @@
   "theme_color": "#128C7E",
   "display": "standalone",
   "orientation": "portrait",
+  "categories": ["utilities", "productivity"],
   "protocol_handlers": [
     {
       "protocol": "web+tel",

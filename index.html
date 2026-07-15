@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zap Rápido</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#128C7E">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #f0f2f5; color: #303030; display: flex; flex-direction: column; min-height: 100vh; align-items: center; justify-content: flex-start; padding: 15px; }
+        .app-container { width: 100%; max-width: 480px; background: #ffffff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-top: 10px; }
+        h2 { text-align: center; color: #075E54; margin-bottom: 20px; font-size: 22px; font-weight: 700; }
+        label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #54656f; }
+        input, textarea, select { width: 100%; margin-bottom: 16px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; font-size: 16px; background-color: #fafafa; transition: border-color 0.2s; -webkit-appearance: none; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #25D366; background-color: #fff; }
+        
+        .btn-enviar { background-color: #25D366; color: white; border: none; font-weight: bold; font-size: 18px; padding: 15px; border-radius: 10px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(37, 211, 102, 0.2); }
+        .btn-enviar:active { background-color: #128C7E; transform: scale(0.98); }
+        
+        .grid-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .btn-acao { padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .btn-salvar { background-color: #007BFF; color: white; }
+        .btn-salvar:active { background-color: #0056b3; }
+        .btn-excluir { background-color: #DC3545; color: white; }
+        .btn-excluir:active { background-color: #bd2130; }
+        
+        hr { border: 0; border-top: 1px solid #e9edef; margin: 15px 0; }
+        
+        /* Botão flutuante para instalar o app */
+        #btn-instalar { display: none; background-color: #128C7E; color: white; border: none; padding: 12px 20px; border-radius: 30px; font-weight: bold; font-size: 14px; position: fixed; bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 999; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <button id="btn-instalar">📲 Instalar Aplicativo</button>
+
+    <div class="app-container">
+        <h2>Zap Rápido</h2>
+        
+        <label for="numero">Número do Cliente (com DDD):</label>
+        <input type="tel" id="numero" placeholder="Cole ou digite (Ex: 62999999999)" inputmode="numeric">
+
+        <hr>
+
+        <label for="seletor-mensagens">Modelo de Mensagem:</label>
+        <select id="seletor-mensagens" onchange="carregarMensagemSelecionada()"></select>
+
+        <label for="titulo-mensagem">Nome do Modelo:</label>
+        <input type="text" id="titulo-mensagem" placeholder="Ex: Cobrança, Boas-vindas">
+
+        <label for="mensagem">Texto do Modelo:</label>
+        <textarea id="mensagem" rows="4" placeholder="Digite o texto aqui..."></textarea>
+
+        <div class="grid-botoes">
+            <button type="button" class="btn-acao btn-salvar" onclick="salvarMensagem()">💾 Salvar</button>
+            <button type="button" class="btn-acao btn-excluir" onclick="excluirMensagem()">🗑️ Excluir</button>
+        </div>
+
+        <hr>
+
+        <button type="button" class="btn-enviar" onclick="abrirWhatsapp()">🚀 Abrir no WhatsApp</button>
+    </div>
+
+    <script>
+        // --- Registro do Service Worker (Essencial para PWA) ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker registrado com sucesso.'))
+                .catch(err => console.log('Erro ao registrar Service Worker:', err));
+        }
+
+        // --- Captura do evento de Instalação ---
+        let instaladorInstancia;
+        const botaoInstalar = document.getElementById('btn-instalar');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            instaladorInstancia = e;
+            botaoInstalar.style.display = 'block'; // Mostra o botão flutuante se puder instalar
+        });
+
+        botaoInstalar.addEventListener('click', () => {
+            if (instaladorInstancia) {
+                instaladorInstancia.prompt();
+                instaladorInstancia.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        botaoInstalar.style.display = 'none';
+                    }
+                    instaladorInstancia = null;
+                });
+            }
+        });
+
+        // --- Lógica de Mensagens e WhatsApp ---
+        let listaMensagens = [];
+
+        window.onload = function() {
+            carregarDoArmazenamento();
+            atualizarSeletor();
+        };
+
+        function carregarDoArmazenamento() {
+            let salvas = localStorage.getItem('mensagensPredefinidas');
+            if (salvas) {
+                listaMensagens = JSON.parse(salvas);
+            } else {
+                listaMensagens = [
+                    { titulo: "Saudação Inicial", texto: "Olá! Como posso te ajudar hoje?" },
+                    { titulo: "Link de Compra", texto: "Olá! Segue o link para finalizar sua compra: " }
+                ];
+                salvarNoArmazenamento();
+            }
+        }
+
+        function salvarNoArmazenamento() {
+            localStorage.setItem('mensagensPredefinidas', JSON.stringify(listaMensagens));
+        }
+
+        function atualizarSeletor() {
+            let seletor = document.getElementById('seletor-mensagens');
+            seletor.innerHTML = '<option value="">-- Criar Novo Modelo --</option>';
+            
+            listaMensagens.forEach((msg, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.innerHTML = msg.titulo;
+                seletor.appendChild(opt);
+            });
+
+            carregarMensagemSelecionada();
+        }
+
+        function carregarMensagemSelecionada() {
+            let index = document.getElementById('seletor-mensagens').value;
+            let campoTitulo = document.getElementById('titulo-mensagem');
+            let campoTexto = document.getElementById('mensagem');
+
+            if (index !== "") {
+                campoTitulo.value = listaMensagens[index].titulo;
+                campoTexto.value = listaMensagens[index].texto;
+            } else {
+                campoTitulo.value = "";
+                campoTexto.value = "";
+            }
+        }
+
+        function salvarMensagem() {
+            let titulo = document.getElementById('titulo-mensagem').value.trim();
+            let texto = document.getElementById('mensagem').value.trim();
+            let index = document.getElementById('seletor-mensagens').value;
+
+            if (!titulo || !texto) {
+                alert('Preencha o título e o texto da mensagem.');
+                return;
+            }
+
+            if (index !== "") {
+                listaMensagens[index] = { titulo, texto };
+            } else {
+                listaMensagens.push({ titulo, texto });
+                index = listaMensagens.length - 1;
+            }
+
+            salvarNoArmazenamento();
+            atualizarSeletor();
+            document.getElementById('seletor-mensagens').value = index;
+            carregarMensagemSelecionada();
+        }
+
+        function excluirMensagem() {
+            let index = document.getElementById('seletor-mensagens').value;
+
+            if (index === "") {
+                alert('Selecione um modelo para excluir.');
+                return;
+            }
+
+            if (confirm('Deseja excluir este modelo?')) {
+                listaMensagens.splice(index, 1);
+                salvarNoArmazenamento();
+                atualizarSeletor();
+            }
+        }
+
+        function abrirWhatsapp() {
+            let num = document.getElementById('numero').value.replace(/\D/g, ''); 
+            let msg = document.getElementById('mensagem').value;
+
+            if (num === '') {
+                alert('Digite ou cole o número do cliente.');
+                return;
+            }
+
+            if (num.length === 11 || num.length === 10) {
+                num = '55' + num;
+            }
+
+            let textoCodificado = encodeURIComponent(msg);
+            let url = `whatsapp://send?phone=${num}&text=${textoCodificado}`;
+
+            window.location.href = url;
+        }
+    </script>
+
+</body>
+</html>

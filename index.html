@@ -18,6 +18,12 @@
         input, textarea, select { width: 100%; margin-bottom: 16px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; font-size: 16px; background-color: #fafafa; transition: border-color 0.2s; -webkit-appearance: none; }
         input:focus, textarea:focus, select:focus { outline: none; border-color: #25D366; background-color: #fff; }
         
+        /* Layout para o campo de número com botão colar */
+        .campo-colar-group { display: flex; gap: 8px; margin-bottom: 16px; }
+        .campo-colar-group input { margin-bottom: 0; flex: 1; }
+        .btn-colar { background-color: #e9edef; color: #111b21; border: 1px solid #ccc; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+        .btn-colar:active { background-color: #d1d7db; }
+
         .area-botoes-principais { display: flex; flex-direction: column; gap: 10px; }
         .btn-enviar { background-color: #25D366; color: white; border: none; font-weight: bold; font-size: 18px; padding: 15px; border-radius: 10px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(37, 211, 102, 0.2); }
         .btn-enviar:active { background-color: #128C7E; transform: scale(0.98); }
@@ -45,7 +51,10 @@
         <h2>Zap Rápido</h2>
         
         <label for="numero">Número do Cliente (com DDD):</label>
-        <input type="tel" id="numero" placeholder="Cole ou digite (Ex: 62999999999)" inputmode="numeric">
+        <div class="campo-colar-group">
+            <input type="tel" id="numero" placeholder="Ex: 62999999999" inputmode="numeric">
+            <button type="button" class="btn-colar" onclick="colarNumero()">📋 Colar</button>
+        </div>
 
         <hr>
 
@@ -115,6 +124,30 @@
                 });
             }
         });
+
+        // --- Função para Colar da Área de Transferência ---
+        async function colarNumero() {
+            try {
+                if (!navigator.clipboard || !navigator.clipboard.readText) {
+                    alert('Seu navegador não suporta a função de colar automaticamente.');
+                    return;
+                }
+                const texto = await navigator.clipboard.readText();
+                if (texto) {
+                    // Filtra mantendo apenas números
+                    let numeroLimpo = texto.replace(/\D/g, '');
+                    
+                    // Trata números que vêm com código do país 55 extra
+                    if (numeroLimpo.startsWith('55') && (numeroLimpo.length === 12 || numeroLimpo.length === 13)) {
+                        numeroLimpo = numeroLimpo.substring(2);
+                    }
+                    
+                    document.getElementById('numero').value = numeroLimpo;
+                }
+            } catch (err) {
+                alert('Permissão negada ou erro ao ler a área de transferência.');
+            }
+        }
 
         // --- Lógica da Aplicação ---
         let listaMensagens = [];
@@ -211,6 +244,52 @@
 
         function excluirMensagem() {
             let index = document.getElementById('seletor-mensagens').value;
+
+            if (index === "") {
+                alert('Selecione um modelo para excluir.');
+                return;
+            }
+
+            if (confirm('Deseja excluir este modelo?')) {
+                listaMensagens.splice(index, 1);
+                salvarNoArmazenamento();
+                atualizarSeletor();
+            }
+        }
+
+        function abrirWhatsapp() {
+            let num = document.getElementById('numero').value.replace(/\D/g, ''); 
+            let msg = document.getElementById('mensagem').value;
+
+            if (num === '') {
+                alert('Digite ou cole o número do cliente.');
+                return;
+            }
+
+            if (num.length === 11 || num.length === 10) {
+                num = '55' + num;
+            }
+
+            let textoCodificado = encodeURIComponent(msg);
+            let url = `whatsapp://send?phone=${num}&text=${textoCodificado}`;
+
+            window.location.href = url;
+        }
+
+        function ligarCliente() {
+            let num = document.getElementById('numero').value.replace(/\D/g, '');
+
+            if (num === '') {
+                alert('Digite ou cole o número do cliente.');
+                return;
+            }
+
+            window.location.href = `tel:${num}`;
+        }
+    </script>
+</body>
+</html>
+r-mensagens').value;
 
             if (index === "") {
                 alert('Selecione um modelo para excluir.');
